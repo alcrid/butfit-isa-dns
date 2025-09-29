@@ -1,0 +1,1 @@
+// your goal is to send a dns message to my server (simple :>)
