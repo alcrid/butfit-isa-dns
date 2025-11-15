@@ -13,10 +13,8 @@ Popis:
         -p port: Číslo portu, na kterém bude program očekávat dotazy. Výchozí je port 53.
         -f filter_file: Jméno souboru obsahující nežádoucí domény.
 
-    Podporované typy dotazů
-
+    Podporované typy 
     Uvažujte pouze dotazy typu A, protokol UDP a libovolné protokoly nižších vrstev podporované OS. Není požadována podpora DNSSEC.
-
     Výstup aplikace
 
     Program nebude vypisovat žádné informace. Volitelně však můžete implementovat parametr -v (verbose), při jehož uvedení bude program vypisovat informace o překladu ve vámi zvoleném formátu.

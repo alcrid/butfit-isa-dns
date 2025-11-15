@@ -1,124 +1,102 @@
+#include "dns_filter.hpp"
+#include "blocklist.hpp"
 #include <iostream>
-#include <fstream>
+#include <cstdlib>
 #include <unistd.h>
-#include "dns.h"
-#include <sys/socket.h>
-#include <sys/types.h>
-#include <bits/stdc++.h>
-#include <netdb.h>
-#include <arpa/inet.h>
+#include "logger.hpp"
 
-using namespace std;
+void signal_handler(int)
+{
+    Logger::log("Shutdown signal received");
+    keep_running = 0;
+}
+
 int main(int argc, char **argv)
 {
-    char *server;
-    int port = 53;
-    char *filter;
+    char *server = nullptr;
+    char *port = (char *)"53";
+    char *filter = nullptr;
+    bool port_set = false;
     int arg;
-    char ipstr[INET6_ADDRSTRLEN];
-
-    while ((arg = getopt(argc, argv, "s:p:f:")) != -1)
+    // Parse arguments
+    while ((arg = getopt(argc, argv, "s:p:f:vh")) != -1)
     {
         switch (arg)
         {
         case 's':
+            if (server != nullptr)
+            {
+                std::cerr << "Duplicate parameters not allowed" << std::endl;
+                exit(1);
+            }
             server = optarg;
             break;
         case 'p':
-            port = atoi(optarg);
-
+            if (port_set)
+            {
+                std::cerr << "Duplicate parameters not allowed" << std::endl;
+                exit(1);
+            }
+            port_set = true;
+            port = optarg;
+            if (atoi(port) < 1 || atoi(port) > 65535)
+            {
+                exit(1);
+            }
             break;
         case 'f':
+            if (filter != nullptr)
+            {
+                // duplicate parameters not allowed
+                std::cerr << "Duplicate parameters not allowed" << std::endl;
+                exit(1);
+            }
             filter = optarg;
             break;
+        case 'v':
+            Logger::set_verbose(true);
+            break;
+        case 'h':
+            std::cout << "Usage: ./dns -s server [-p port] -f filter [-v] [-h]" << std::endl;
+            exit(0);
+            break;
+        default:
+            exit(1);
         }
     }
 
-    cout << "parameters specified server: " << server
-         << " port: " << port
-         << " filter_file: " << filter << endl;
-
-    ifstream file;
-    string line;
-    if (filter != NULL)
+    if (server == nullptr)
     {
-        file.open(filter);
-        if (file.is_open())
-        {
-            while (getline(file, line))
-            {
-                // cout << line << '\n';
-            }
-            file.close();
-        }
-        else
-        {
-            cout << "Unable to open file" << endl;
-        }
-    }
-
-    int status;
-    struct addrinfo hints;
-    struct addrinfo *servinfo;
-
-    memset(&hints, 0, sizeof(hints));
-
-    hints.ai_family = AF_INET;
-    hints.ai_socktype = SOCK_DGRAM;
-    hints.ai_flags = AI_PASSIVE;
-
-    if ((status = getaddrinfo(server, "3490", &hints, &servinfo)) != 0)
-    {
-        fprintf(stderr, "gai error: %s\n", gai_strerror(status));
+        Logger::log("Error: -s <server> parameter is required");
         exit(1);
     }
 
-    struct addrinfo *p;
-
-    for (p = servinfo; p != NULL; p = p->ai_next)
+    if (filter == nullptr)
     {
-        void *addr;
-        char *ipver;
-        struct sockaddr_in *ipv4;
-        struct sockaddr_in6 *ipv6;
-
-        // get the pointer to the address itself,
-        // different fields in IPv4 and IPv6:
-        if (p->ai_family == AF_INET)
-        { // IPv4
-            ipv4 = (struct sockaddr_in *)p->ai_addr;
-            addr = &(ipv4->sin_addr);
-            ipver = "IPv4";
-        }
-        else
-        { // IPv6
-            ipv6 = (struct sockaddr_in6 *)p->ai_addr;
-            addr = &(ipv6->sin6_addr);
-            ipver = "IPv6";
-        }
-
-        // convert the IP to a string and print it:
-        inet_ntop(p->ai_family, addr, ipstr, sizeof ipstr);
-        printf("  %s: %s\n", ipver, ipstr);
+        exit(1);
     }
 
-    int sockfd = socket(servinfo->ai_family, servinfo->ai_socktype, servinfo->ai_protocol);
-    bind(sockfd, servinfo->ai_addr, servinfo->ai_addrlen);
+    Logger::log("DNS Filter Starting");
+    Logger::log("Server: " + std::string(server));
+    Logger::log("Port: " + std::string(port));
+    Logger::log("Filter file: " + std::string(filter));
 
-    listen(sockfd, 0);
-    int clientSocket = accept(sockfd, nullptr, nullptr);
-        char buffer[1024] = {0};
-        recv(clientSocket, buffer, sizeof(buffer), 0);
-        cout << "Message from client: " << buffer << endl;
-    
-    close(sockfd);
-    freeaddrinfo(servinfo);
+    // Load blocklist
+    Blocklist blocklist;
+    if (filter != nullptr)
+    {
+        blocklist.load_from_file(filter);
+    }
 
-    // create a socket
-    // bind it to my own ip with the port specified
-    // create socket for the resolver
-    // bind the resolver socker
-    // communicate with the resolver
-    // send reply back to the one making the rerquest
+    struct sigaction sa;
+    sa.sa_handler = signal_handler;
+    sigemptyset(&sa.sa_mask);
+    sa.sa_flags = 0;
+    sigaction(SIGINT, &sa, nullptr);
+    sigaction(SIGTERM, &sa, nullptr);
+
+    // run the filter
+    run_dns_filter(server, port, blocklist);
+
     return 0;
 }
