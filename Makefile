@@ -1,39 +1,36 @@
 CXX = g++
 CXXFLAGS = -g -pedantic -Wall -Wextra -O2
+LDFLAGS = -pthread
+
+SRC_DIR = src
+BUILD_DIR = build
+SRCS = $(wildcard $(SRC_DIR)/*.cpp)
+OBJS = $(SRCS:$(SRC_DIR)/%.cpp=$(BUILD_DIR)/%.o)
 TARGET = dns
 
-.PHONY: all run clean test
+.PHONY: all run test test-args test-filter clean
 
-all: dns
+all: $(TARGET)
 
-dns: dns.o dns_filter.o dns_message.o blocklist.o logger.o
-	$(CXX) $(CXXFLAGS) -o dns dns.o dns_filter.o dns_message.o blocklist.o logger.o -pthread
+$(TARGET): $(OBJS)
+	$(CXX) $(CXXFLAGS) -o $@ $^ $(LDFLAGS)
 
-dns.o: dns.cpp dns_filter.hpp blocklist.hpp logger.hpp
-	$(CXX) $(CXXFLAGS) -c dns.cpp
+$(BUILD_DIR)/%.o: $(SRC_DIR)/%.cpp $(wildcard $(SRC_DIR)/*.hpp) | $(BUILD_DIR)
+	$(CXX) $(CXXFLAGS) -c $< -o $@
 
-dns_filter.o: dns_filter.cpp dns_filter.hpp dns_message.hpp blocklist.hpp logger.hpp
-	$(CXX) $(CXXFLAGS) -c dns_filter.cpp
+$(BUILD_DIR):
+	mkdir -p $(BUILD_DIR)
 
-dns_message.o: dns_message.cpp dns_message.hpp
-	$(CXX) $(CXXFLAGS) -c dns_message.cpp
+test: test-args test-filter
 
-blocklist.o: blocklist.cpp blocklist.hpp logger.hpp
-	$(CXX) $(CXXFLAGS) -c blocklist.cpp
-
-logger.o: logger.cpp logger.hpp
-	$(CXX) $(CXXFLAGS) -c logger.cpp
-
-test: dns test-args test-filter
-
-test-args: dns
+test-args: $(TARGET)
 	@./tests/argument_tests.sh
 
-test-filter: dns
+test-filter: $(TARGET)
 	@./tests/filter_tests.sh
 
-clean:
-	rm -f *.o $(TARGET)
+run: $(TARGET)
+	./$(TARGET) -s 8.8.8.8 -p 4400 -f tests/blocklists/blocked_domains -v
 
-run: dns
-	./dns -s 8.8.8.8 -p 4400 -f blocked_domains
+clean:
+	rm -rf $(BUILD_DIR) $(TARGET)

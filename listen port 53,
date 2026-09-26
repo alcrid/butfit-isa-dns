@@ -1,6 +1,0 @@
-listen port 53, 
-when packet is recieved parse it, (error check if incorrect stuff)
-check domain names 
-send to resolver
-cache value from resoler
-send back according to ip and port from packet, 

@@ -1,6 +1,7 @@
 #!/bin/bash
 set +e
 
+cd "$(dirname "$0")" || exit 1
 DNS_BINARY="../dns"
 RESOLVER="dns.google"
 PORT=2224

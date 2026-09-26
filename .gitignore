@@ -1,0 +1,12 @@
+# build
+build/
+dns
+*.o
+
+# test artifacts
+tests/filter.txt
+*.log
+
+# editor
+.vscode/
+.idea/
